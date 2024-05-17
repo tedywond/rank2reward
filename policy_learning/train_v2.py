@@ -201,7 +201,8 @@ class MetaworldWorkspaceV2:
         if self.train_ours:
             self.disable_ranking = True
             self.take_log_reward = False
-            self.take_d_ratio= False   
+            self.take_d_ratio= False
+            # self.with_ppc = False TODO: what is ppc?
         ###
 
         if repo_root is None:
@@ -268,6 +269,13 @@ class MetaworldWorkspaceV2:
         else:
             lrf_dummy_env = ImageMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img)
 
+        #### ADDED
+        # TODO: do we even need this??
+        if self.train_ours:
+            rl_dummy_env = ImageMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img)
+            lrf_dummy_env = ImageMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img)
+        ####
+
         # create replay buffer
         data_specs = (rl_dummy_env.observation_spec(),
                       rl_dummy_env.action_spec(),
@@ -303,9 +311,60 @@ class MetaworldWorkspaceV2:
         
         #### ADDED
         if self.train_ours:
-            self.train_ours_for_steps = 20
-            self.train_ours_frequency_steps = 2000
+            self.train_lrf_for_steps = 20
+            self.train_lrf_frequency_steps = 2000
 
+            # anything with a lrf needs this
+            self.rb_for_reward_fn = ReplayBuffer(
+                replay_storage_path,
+                self.rb_config.rb_size,
+                1,
+                self.rb_config.nstep,   # doesn't really matter
+                self.cfg.discount_rate, # doesn't really matter
+                fetch_every=1,          # refresh the replay buffer everytime we call _sample()
+                save_snapshot=True      # if this isn't true, replay buffer starts getting deleted which wouldn't be super
+            )
+
+            # figure out which environment we are instantiating
+            if self.lrf_on_state:
+                # assert self.lrf_on_state == self.rl_on_state
+                # self.learned_reward_function = LearnedRewardFunction(
+                #     obs_size=lrf_dummy_env.observation_spec().shape[0],
+                #     exp_dir=self.work_dir,
+                #     replay_buffer=self.rb_for_reward_fn,
+                #     train_classify_with_mixup=self.train_classifier_with_mixup,
+                #     add_state_noise=True,
+                #     rb_buffer_obs_key=self.lrf_obs_key,
+                #     disable_ranking=self.disable_ranking,
+                #     disable_classifier=self.disable_classifier,
+                #     train_classifier_with_goal_state_only=self.train_vice,
+                # )
+                # self.train_env = LowDimOnlineCustomRewardMetaworldEnv(self.env_str, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                # self.eval_env = LowDimOnlineCustomRewardMetaworldEnv(self.env_str, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                pass
+            else:
+                self.learned_reward_function = True # TODO: write our own reward function
+                # self.learned_reward_function = LearnedImageRewardFunction(
+                #     obs_size=lrf_dummy_env.observation_spec().shape,
+                #     exp_dir=self.work_dir,
+                #     replay_buffer=self.rb_for_reward_fn,
+                #     train_classify_with_mixup=self.train_classifier_with_mixup,
+                #     add_state_noise=True,
+                #     rb_buffer_obs_key=self.lrf_obs_key,
+                #     disable_ranking=self.disable_ranking,
+                #     disable_classifier=self.disable_classifier,
+                #     train_classifier_with_goal_state_only=self.train_vice,
+                #     do_film_layer=self.do_film_layer,
+                # )
+
+                if self.rl_on_state:
+                    # self.train_env = LowDimStateCustomRewardFromImagesMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                    # self.eval_env = LowDimStateCustomRewardFromImagesMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                    pass
+                else:
+                    # TODO: Modify the environments to use our reward function
+                    self.train_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                    self.eval_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
         ####
 
 
@@ -570,7 +629,18 @@ class MetaworldWorkspaceV2:
                     imitation_loss, _ = self.soil.calculate_policy_loss(self.agent, self.global_step - self.cfg.num_seed_frames)
                     metrics = self.agent.update_actor_with_other_loss(imitation_loss)
                 else:
-                    if self.with_online_learned_reward_fn:
+                    #### ADDED
+                    if self.train_ours:
+                        # TODO: implement our method (with goal image) and potentially change the update function?
+                        # metrics = self.agent.update(
+                        #     self.replay_iter, self.global_step,
+                        #     lrf=self.learned_reward_function, goal_image=None,
+                        #     airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier,
+                        #     refresh_reward=self.refresh_reward,
+                        # )
+                        pass
+                    ####
+                    elif self.with_online_learned_reward_fn:
                         # note: we don't have goal images for metaworld, just goal states
                         metrics = self.agent.update(
                             self.replay_iter, self.global_step,
@@ -599,6 +669,7 @@ class MetaworldWorkspaceV2:
                 print(f"curent job is using this directory: {self.work_dir}")
                 print(f"with this wandb run name: {wandb.run.name} in {self.wandb_mode} mode now")
 
+            # TODO: we don't have a classifier right now, but implement it later (right now set self.disable_classifier = True)
             # we don't have to train the lrf if we aren't using the classifier
             if not self.disable_classifier:
                 # periodically retrain the learned reward function, don't start training till agent is seeded
@@ -637,6 +708,7 @@ class MetaworldWorkspaceV2:
             self.__dict__[k] = v
         print(f"successfully loaded workspace snapshot at step {self.global_step} from {snapshot}")
 
+    # TODO: figure this out later
     def eval_lrf(self, iter_num: str = "end"):
         assert self.with_online_learned_reward_fn
 
@@ -685,6 +757,9 @@ class MetaworldArgumentParser(Tap):
 
     num_train_frames: int = 1_500_000
 
+    #### ADDED
+    train_ours: bool = False
+    ####
     train_gail: bool = False
     train_airl: bool = False
     train_vice: bool = False
@@ -711,7 +786,11 @@ def run_train():
         "reach", "bin-picking", "button-press-topdown", "door-open"
     ]
 
-    if args.train_gail:
+    #### ADDED
+    if args.train_ours:
+        exp_style = "ours"
+    ####
+    elif args.train_gail:
         exp_style = "gail"
     elif args.train_airl:
         exp_style = "airl"
@@ -728,7 +807,7 @@ def run_train():
     else:
         exp_style = "vanilla"
 
-    if exp_style in ["soil", "vanilla", "tcn"]:
+    if exp_style in ["soil", "vanilla", "tcn", "ours"]: # TODO: don't use online lrf for now
         assert not args.use_online_lrf
     else:
         assert args.use_online_lrf
@@ -756,10 +835,10 @@ def run_train():
         exp_str=exp_str,
         seed=args.seed,
         discount_rate=args.discount_rate,
-        with_online_learned_reward_fn=args.use_online_lrf,
+        with_online_learned_reward_fn=args.use_online_lrf, # TODO: don't use online lrf for now
         num_train_frames=args.num_train_frames,
         drqv2_feature_dim=128,
-        train_classifier_with_mixup=train_classifier_with_mixup,
+        train_classifier_with_mixup=False, #train_classifier_with_mixup, TODO: implement classifier
         do_film_layer=do_film_layer,
         camera_name="left_cap2",
         with_ppc=True,
@@ -775,6 +854,9 @@ def run_train():
         refresh_reward=args.refresh_reward,
         disable_classifier=args.disable_classifier,
         train_tcn=args.train_tcn,
+        #### ADDED
+        train_ours=args.train_ours,
+        ####
     )
 
     workspace.train()

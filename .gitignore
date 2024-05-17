@@ -168,3 +168,4 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 
 rank2reward_metaworld/
+reward_extraction/models/

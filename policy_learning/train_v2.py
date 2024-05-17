@@ -73,6 +73,9 @@ class MetaworldWorkspaceV2:
         refresh_reward: bool = False,
         disable_classifier: bool = False,
         train_tcn: bool = False,
+        #### ADDED
+        train_ours: bool = False,
+        ####
     ):
         curr_work_directory = str(Path.cwd())
         if 'gridsan' in curr_work_directory:
@@ -82,7 +85,11 @@ class MetaworldWorkspaceV2:
             self.wandb_mode = "online"
 
         if self.REL_REPO_ROOT_DIR == "policy_learning":
-            if train_gail:
+            #### ADDED
+            if train_ours:
+                project_name = "rewardlearningvid-metaworld-ours"
+            ####
+            elif train_gail:
                 project_name = "rewardlearningvid-metaworld-gail"
             elif train_airl:
                 project_name = "rewardlearningvid-metaworld-airl"
@@ -170,6 +177,11 @@ class MetaworldWorkspaceV2:
         self.train_vice = train_vice
         self.train_soil = train_soil
         self.train_tcn = train_tcn
+        
+        #### ADDED
+        self.train_ours = train_ours
+        ####
+
         assert (int(train_gail) + int(train_airl) + int(train_vice) + int(train_soil) + int(train_tcn)) <= 1
         if self.train_gail or self.train_airl or self.train_vice:
             self.disable_ranking = True
@@ -185,6 +197,12 @@ class MetaworldWorkspaceV2:
             assert (int(train_gail) + int(train_airl) + int(train_vice) + int(train_soil) + int(train_tcn)) == 0
             assert not self.disable_ranking
 
+        ### ADDED
+        if self.train_ours:
+            self.disable_ranking = True
+            self.take_log_reward = False
+            self.take_d_ratio= False   
+        ###
 
         if repo_root is None:
             self.repo_root = Path.cwd()
@@ -282,9 +300,17 @@ class MetaworldWorkspaceV2:
 
         # we use the expert data for BC initialization both with and without the LRF
         check_and_generate_expert_data(str(self.work_dir), self.env_str, lrf_dummy_env, 100, False)
+        
+        #### ADDED
+        if self.train_ours:
+            self.train_ours_for_steps = 20
+            self.train_ours_frequency_steps = 2000
+
+        ####
+
 
         # for the reward function training. affects which environment we instantiate
-        if self.with_online_learned_reward_fn:
+        elif self.with_online_learned_reward_fn:
             self.train_lrf_for_steps = 20
             self.train_lrf_frequency_steps = 2000
 

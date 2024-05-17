@@ -796,7 +796,7 @@ if __name__ == "__main__":
 
     for env_str in tqdm(envs):
         env = ImageMetaworldEnv(env_str, camera_name="left_cap2", high_res_env=False)
-        expert_data_dir = os.path.expanduser(f"~/code/rewardlearning-vid/ROT/ROT/expert_demos/{env_str}")
+        expert_data_dir = f"../rank2reward/{env_str}"
         if not os.path.exists(expert_data_dir):
             os.makedirs(expert_data_dir)
-        check_and_generate_expert_data(expert_data_dir, env_str, env, 100, False, False)
+        check_and_generate_expert_data(expert_data_dir, env_str, env, 100, False, True)

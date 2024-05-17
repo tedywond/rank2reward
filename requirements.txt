@@ -195,7 +195,7 @@ pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pybullet==3.2.5
 pycparser==2.21
-pycurl==7.45.1
+pycurl==7.45.3
 pydantic==1.10.8
 pyglet==1.5.27
 Pygments==2.12.0

@@ -28,6 +28,10 @@ from reward_extraction.metaworld_experts import get_expert_policy
 from reward_extraction.models import Policy, R3MPolicy, R3MImageGoalPolicy
 from policy_learning.envs import LowDimMetaworldEnv
 
+#### ADDED
+from video2reward import reward_model as v2r_model
+#### 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -844,11 +848,11 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         # self.same_traj_optimizer = optim.Adam(list(self.same_traj_classifier.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
         # self.bce_with_logits_criterion = torch.nn.BCEWithLogitsLoss()
 
-        self.reward_model = Model(model_type="resnet18")
-        self.reward_model.to(device) # TODO: change to ID to train in parallel
+        self.v2r_reward_model = v2r_model.Model(model_type="resnet18")
+        self.v2r_reward_model.to(device) # TODO: change to ID to train in parallel
         checkpoint = torch.load('_norm_rand.pth') # TODO: download and load from Google Drive URL
         
-        model.load_state_dict(checkpoint['model_state_dict'])
+        self.v2r_reward_model.load_state_dict(checkpoint['model_state_dict'])
 
         # make sure there is expert data
         # self.expert_data_path = f"{self.exp_dir}/expert_data.hdf"

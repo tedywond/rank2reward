@@ -195,14 +195,13 @@ class MetaworldWorkspaceV2:
 
         if disable_classifier:
             assert (int(train_gail) + int(train_airl) + int(train_vice) + int(train_soil) + int(train_tcn)) == 0
-            assert not self.disable_ranking
+            assert not self.disable_ranking # TODO: what does this do exactly?
 
         ### ADDED
         if self.train_ours:
-            self.disable_ranking = True
+            self.disable_ranking = True 
             self.take_log_reward = False
             self.take_d_ratio= False
-            # self.with_ppc = False TODO: what is ppc?
         ###
 
         if repo_root is None:

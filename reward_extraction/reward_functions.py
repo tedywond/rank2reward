@@ -786,6 +786,144 @@ class LearnedImageRewardFunction(LearnedRewardFunction):
         }
 
 
+#### ADDED
+class OurLearnedImageRewardFunction(LearnedRewardFunction):
+    def __init__(self,
+        obs_size: int,
+        exp_dir: str,
+        replay_buffer: ReplayBuffer,
+        train_classify_with_mixup: bool = False,
+        add_state_noise: bool = False,
+        rb_buffer_obs_key: str = "observation",
+        disable_classifier: bool = False, # ablation
+        disable_ranking: bool = False, # GAIL / AIRL,
+        goal_is_image: bool = True,
+        train_classifier_with_goal_state_only: bool = False, # VICE,
+        for_rlpd: bool = False,
+        do_film_layer: bool = True,
+    ):
+        '''
+        NOTE: assuming that someone else is responsible for making sure the replay buffer
+              seeing fresh data on disk. we just like to have a pointer to it here to access
+        '''
+        self.exp_dir = exp_dir
+        self.horizon = 100
+        self.train_classify_with_mixup = train_classify_with_mixup
+        self.add_state_noise = add_state_noise # let's call image shifts as state noise /shrug
+        self.disable_ranking = disable_ranking
+        self.disable_classifier = disable_classifier
+        # self.aug = RandomShiftsAug(12)
+        self.goal_is_image = goal_is_image
+        self.train_classifier_with_goal_state_only = train_classifier_with_goal_state_only
+        if self.train_classifier_with_goal_state_only:
+            assert self.disable_ranking
+
+        # TODO implement classifier
+        # training parameters
+        # self.batch_size = 96
+        # self.lr = 1e-4
+        # self.do_film_layer = do_film_layer
+        # if self.do_film_layer:
+        #     self.weight_decay_rate = 1e-4
+        # else:
+        #     self.weight_decay_rate = 0.0
+
+        # network definitions
+        # if not self.disable_ranking:
+        #     if self.goal_is_image:
+        #         self.ranking_network = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
+        #     else:
+        #         self.ranking_network = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
+        #     self.ranking_network.to(device)
+        #     self.ranking_optimizer = optim.Adam(list(self.ranking_network.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
+        # if self.goal_is_image:
+        #     self.same_traj_classifier = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
+        # else:
+        #     self.same_traj_classifier = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
+        # self.same_traj_classifier.to(device)
+        # self.same_traj_optimizer = optim.Adam(list(self.same_traj_classifier.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
+        # self.bce_with_logits_criterion = torch.nn.BCEWithLogitsLoss()
+
+        self.reward_model = Model(model_type="resnet18")
+        self.reward_model.to(device) # TODO: change to ID to train in parallel
+        checkpoint = torch.load('_norm_rand.pth') # TODO: download and load from Google Drive URL
+        
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+        # make sure there is expert data
+        # self.expert_data_path = f"{self.exp_dir}/expert_data.hdf"
+        # self.expert_test_data_path = f"{self.exp_dir}/expert_test_data.hdf"
+        # assert os.path.exists(self.expert_data_path)
+        # self.expert_data_ptr = H5PyTrajDset(self.expert_data_path, read_only_if_exists=True)
+        # self.expert_data = [d for d in self.expert_data_ptr]
+        # self.expert_test_data_ptr = H5PyTrajDset(self.expert_test_data_path, read_only_if_exists=True)
+        # self.expert_test_data = [d for d in self.expert_test_data_ptr]
+        # self.num_expert_trajs = len(self.expert_data)
+        # assert self.num_expert_trajs == 100
+
+        # replay buffer
+        self.replay_buffer = replay_buffer
+        self.rb_buffer_obs_key = rb_buffer_obs_key
+        self.for_rlpd = for_rlpd
+
+        # see if we need to do any upsampling
+        self.resample_images = False
+        if obs_size != (3, 224, 224):
+            print(f"obs size: {obs_size} needs to be resized to (3, 224, 224)")
+            self.resample_images = True
+            self.resize = transforms.Resize(224)
+
+        # bookkeeping
+        self.train_step = 0
+        self.plot_and_save_frequency = 100
+        self.train_steps = []
+        self.losses_same_traj = []
+        self.losses_std_same_traj = []
+        self.running_loss_same_traj = []
+
+        self.seen_on_policy_data = False
+
+        # init and bookkeeping
+        self.init_ranking_steps = []
+        self.init_ranking_losses = []
+        self.init_ranking_losses_std = []
+        self.init_ranking()
+
+
+    def _preprocess_images(self, batch_images: torch.Tensor):
+        # assumes the input is 0-255 as floats and of size (bs, c, h, w)
+        transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
+        batch = transform(batch_images)
+        return batch
+
+    def _calculate_reward(self, obs: torch.Tensor, goal: torch.Tensor=None, airl_style_reward: bool = False, take_log_reward: bool = False, take_d_ratio: bool = False, lgn_multiplier=1.0, eps=1e-6):
+        '''
+        this code path is executed by the drqv2 agent updating the stale rewards
+        '''
+        batch_imgs = obs
+        batch_goals = goal # TODO: figure out how to pass in the goal image
+
+        with torch.no_grad():
+            self.eval_mode()
+
+            batch_imgs = self._preprocess_images(batch_imgs)
+            if self.goal_is_image:
+                batch_goals = self._preprocess_images(batch_goals)
+
+
+            reward = 
+
+            self.train_mode()
+
+        return reward
+####
+
+
+
 if __name__ == "__main__":
     from policy_learning.envs import ImageMetaworldEnv
 

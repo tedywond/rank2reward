@@ -343,18 +343,18 @@ class MetaworldWorkspaceV2:
                 pass
             else:
                 self.learned_reward_function = True # TODO: write our own reward function
-                # self.learned_reward_function = LearnedImageRewardFunction(
-                #     obs_size=lrf_dummy_env.observation_spec().shape,
-                #     exp_dir=self.work_dir,
-                #     replay_buffer=self.rb_for_reward_fn,
-                #     train_classify_with_mixup=self.train_classifier_with_mixup,
-                #     add_state_noise=True,
-                #     rb_buffer_obs_key=self.lrf_obs_key,
-                #     disable_ranking=self.disable_ranking,
-                #     disable_classifier=self.disable_classifier,
-                #     train_classifier_with_goal_state_only=self.train_vice,
-                #     do_film_layer=self.do_film_layer,
-                # )
+                self.learned_reward_function = LearnedImageRewardFunction(
+                    obs_size=lrf_dummy_env.observation_spec().shape,
+                    exp_dir=self.work_dir,
+                    replay_buffer=self.rb_for_reward_fn,
+                    train_classify_with_mixup=self.train_classifier_with_mixup,
+                    add_state_noise=True,
+                    rb_buffer_obs_key=self.lrf_obs_key,
+                    disable_ranking=self.disable_ranking,
+                    disable_classifier=self.disable_classifier,
+                    train_classifier_with_goal_state_only=self.train_vice,
+                    do_film_layer=self.do_film_layer,
+                )
 
                 if self.rl_on_state:
                     # self.train_env = LowDimStateCustomRewardFromImagesMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)

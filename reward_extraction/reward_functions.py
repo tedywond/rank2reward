@@ -850,8 +850,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
 
         self.v2r_reward_model = v2r_model.Model(model_type="resnet18")
         self.v2r_reward_model.to(device) # TODO: change to ID to train in parallel
-        checkpoint = torch.load('_norm_rand.pth') # TODO: download and load from Google Drive URL
-        
+        checkpoint = torch.load('models/_norm_rand.pth') # TODO: download and load from Google Drive URL
         self.v2r_reward_model.load_state_dict(checkpoint['model_state_dict'])
 
         # make sure there is expert data

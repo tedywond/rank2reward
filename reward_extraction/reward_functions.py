@@ -821,6 +821,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         self.train_classifier_with_goal_state_only = train_classifier_with_goal_state_only
         if self.train_classifier_with_goal_state_only:
             assert self.disable_ranking
+        self.goal_buffer = {}
 
         # TODO implement classifier
         # training parameters

@@ -33,7 +33,7 @@ from policy_learning.envs import (
     TcnImageMetaworldEnv
 )
 from policy_learning.soil_utils import SOIL
-from reward_extraction.reward_functions import LearnedImageRewardFunction, LearnedRewardFunction, check_and_generate_expert_data
+from reward_extraction.reward_functions import LearnedImageRewardFunction, LearnedRewardFunction, check_and_generate_expert_data, OurLearnedImageRewardFunction
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -342,8 +342,8 @@ class MetaworldWorkspaceV2:
                 # self.eval_env = LowDimOnlineCustomRewardMetaworldEnv(self.env_str, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
                 pass
             else:
-                self.learned_reward_function = True # TODO: write our own reward function
-                self.learned_reward_function = LearnedImageRewardFunction(
+                # TODO: make this cleaner
+                self.learned_reward_function = OurLearnedImageRewardFunction(
                     obs_size=lrf_dummy_env.observation_spec().shape,
                     exp_dir=self.work_dir,
                     replay_buffer=self.rb_for_reward_fn,
@@ -362,8 +362,24 @@ class MetaworldWorkspaceV2:
                     pass
                 else:
                     # TODO: Modify the environments to use our reward function
-                    self.train_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
-                    self.eval_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, camera_name=self.camera_name, high_res_env=self.with_high_res_img, lrf=self.learned_reward_function, airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier)
+                    self.train_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, 
+                                                                         camera_name=self.camera_name, 
+                                                                         high_res_env=self.with_high_res_img, 
+                                                                         lrf=self.learned_reward_function, 
+                                                                         airl_style_reward=self.train_airl, 
+                                                                         take_log_reward=self.take_log_reward, 
+                                                                         take_d_ratio=self.take_d_ratio, 
+                                                                         lgn_multiplier=self.lgn_multiplier,
+                                                                         train_ours=True)
+                    self.eval_env = ImageOnlineCustomRewardMetaworldEnv(self.env_str, 
+                                                                        camera_name=self.camera_name, 
+                                                                        high_res_env=self.with_high_res_img, 
+                                                                        lrf=self.learned_reward_function,
+                                                                        airl_style_reward=self.train_airl, 
+                                                                        take_log_reward=self.take_log_reward, 
+                                                                        take_d_ratio=self.take_d_ratio, 
+                                                                        lgn_multiplier=self.lgn_multiplier,
+                                                                        train_ours=True)
         ####
 
 
@@ -631,13 +647,12 @@ class MetaworldWorkspaceV2:
                     #### ADDED
                     if self.train_ours:
                         # TODO: implement our method (with goal image) and potentially change the update function?
-                        # metrics = self.agent.update(
-                        #     self.replay_iter, self.global_step,
-                        #     lrf=self.learned_reward_function, goal_image=None,
-                        #     airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier,
-                        #     refresh_reward=self.refresh_reward,
-                        # )
-                        pass
+                        metrics = self.agent.update(
+                            self.replay_iter, self.global_step,
+                            lrf=self.learned_reward_function, goal_image=None,
+                            airl_style_reward=self.train_airl, take_log_reward=self.take_log_reward, take_d_ratio=self.take_d_ratio, lgn_multiplier=self.lgn_multiplier,
+                            refresh_reward=self.refresh_reward,
+                        )
                     ####
                     elif self.with_online_learned_reward_fn:
                         # note: we don't have goal images for metaworld, just goal states
@@ -779,7 +794,7 @@ class MetaworldArgumentParser(Tap):
 
 def run_train():
     args = MetaworldArgumentParser().parse_args()
-
+    import pdb; pdb.set_trace()
     assert args.env_str in [
         "assembly", "drawer-open", "hammer", "door-close", "push",
         "reach", "bin-picking", "button-press-topdown", "door-open"
@@ -855,6 +870,7 @@ def run_train():
         train_tcn=args.train_tcn,
         #### ADDED
         train_ours=args.train_ours,
+        with_high_res_img=True
         ####
     )
 

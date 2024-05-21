@@ -1,5 +1,7 @@
 import copy
 import functools
+import h5py
+import random
 import os
 from pathlib import Path
 import pickle
@@ -799,9 +801,9 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         train_classify_with_mixup: bool = False,
         add_state_noise: bool = False,
         rb_buffer_obs_key: str = "observation",
-        disable_classifier: bool = False, # ablation
-        disable_ranking: bool = False, # GAIL / AIRL,
-        goal_is_image: bool = True,
+        disable_classifier: bool = True, # ablation
+        disable_ranking: bool = True, # GAIL / AIRL,
+        goal_is_image: bool = False,
         train_classifier_with_goal_state_only: bool = False, # VICE,
         for_rlpd: bool = False,
         do_film_layer: bool = True,
@@ -821,49 +823,53 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         self.train_classifier_with_goal_state_only = train_classifier_with_goal_state_only
         if self.train_classifier_with_goal_state_only:
             assert self.disable_ranking
-        self.goal_buffer = {}
 
         # TODO implement classifier
         # training parameters
-        # self.batch_size = 96
-        # self.lr = 1e-4
-        # self.do_film_layer = do_film_layer
-        # if self.do_film_layer:
-        #     self.weight_decay_rate = 1e-4
-        # else:
-        #     self.weight_decay_rate = 0.0
+        self.batch_size = 96
+        self.lr = 1e-4
+        self.do_film_layer = do_film_layer
+        if self.do_film_layer:
+            self.weight_decay_rate = 1e-4
+        else:
+            self.weight_decay_rate = 0.0
 
         # network definitions
-        # if not self.disable_ranking:
-        #     if self.goal_is_image:
-        #         self.ranking_network = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
-        #     else:
-        #         self.ranking_network = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
-        #     self.ranking_network.to(device)
-        #     self.ranking_optimizer = optim.Adam(list(self.ranking_network.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
-        # if self.goal_is_image:
-        #     self.same_traj_classifier = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
-        # else:
-        #     self.same_traj_classifier = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
-        # self.same_traj_classifier.to(device)
-        # self.same_traj_optimizer = optim.Adam(list(self.same_traj_classifier.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
-        # self.bce_with_logits_criterion = torch.nn.BCEWithLogitsLoss()
+        if not self.disable_ranking:
+            if self.goal_is_image:
+                self.ranking_network = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
+            else:
+                self.ranking_network = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
+            self.ranking_network.to(device)
+            self.ranking_optimizer = optim.Adam(list(self.ranking_network.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
+        if self.goal_is_image:
+            self.same_traj_classifier = R3MImageGoalPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer)
+        else:
+            self.same_traj_classifier = R3MPolicy(freeze_backbone=True, film_layer_goal=self.do_film_layer, state_only=for_rlpd)
+        self.same_traj_classifier.to(device)
+        self.same_traj_optimizer = optim.Adam(list(self.same_traj_classifier.parameters()), lr=self.lr, weight_decay=self.weight_decay_rate)
+        self.bce_with_logits_criterion = torch.nn.BCEWithLogitsLoss()
 
         self.v2r_reward_model = v2r_model.Model(model_type="resnet18")
         self.v2r_reward_model.to(device) # TODO: change to ID to train in parallel
         checkpoint = torch.load('models/_norm_rand.pth') # TODO: download and load from Google Drive URL
         self.v2r_reward_model.load_state_dict(checkpoint['model_state_dict'])
+        self.v2r_reward_model.eval()
 
         # make sure there is expert data
-        # self.expert_data_path = f"{self.exp_dir}/expert_data.hdf"
+        self.expert_data_path = f"{self.exp_dir}/expert_data.hdf"
         # self.expert_test_data_path = f"{self.exp_dir}/expert_test_data.hdf"
-        # assert os.path.exists(self.expert_data_path)
-        # self.expert_data_ptr = H5PyTrajDset(self.expert_data_path, read_only_if_exists=True)
-        # self.expert_data = [d for d in self.expert_data_ptr]
+        assert os.path.exists(self.expert_data_path)
+        self.expert_data_ptr = H5PyTrajDset(self.expert_data_path, read_only_if_exists=True)
+        self.expert_data = [d for d in self.expert_data_ptr]
         # self.expert_test_data_ptr = H5PyTrajDset(self.expert_test_data_path, read_only_if_exists=True)
         # self.expert_test_data = [d for d in self.expert_test_data_ptr]
-        # self.num_expert_trajs = len(self.expert_data)
-        # assert self.num_expert_trajs == 100
+        self.num_expert_trajs = len(self.expert_data)
+        assert self.num_expert_trajs == 100
+        self.goal_buffer = [d[0][100] for d in self.expert_data] # buffer of goal images # TODO: create folder with goals only
+        # TODO: REACH task may not work with this. Should we just replay the simulation to obtain a goal, then restart the simulation with the perfect goal?
+        # TODO: Or: choose a different set of tasks? They provide the final coordinates of the end effector, so a task such as reach is trivial! 
+        self.init_buffer = None
 
         # replay buffer
         self.replay_buffer = replay_buffer
@@ -872,10 +878,10 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
 
         # see if we need to do any upsampling
         self.resample_images = False
-        if obs_size != (3, 224, 224):
-            print(f"obs size: {obs_size} needs to be resized to (3, 224, 224)")
+        if obs_size != (3, 84, 84):
+            print(f"obs size: {obs_size} needs to be resized to (3, 84, 84)")
             self.resample_images = True
-            self.resize = transforms.Resize(224)
+            self.resize = transforms.Resize(84)
 
         # bookkeeping
         self.train_step = 0
@@ -897,8 +903,8 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
     def _preprocess_images(self, batch_images: torch.Tensor):
         # assumes the input is 0-255 as floats and of size (bs, c, h, w)
         transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.ToTensor(),
+            # transforms.ToPILImage(),
+            # transforms.ToTensor(),
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
         ])
         batch = transform(batch_images)
@@ -908,19 +914,22 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         '''
         this code path is executed by the drqv2 agent updating the stale rewards
         '''
-        batch_imgs = obs
-        batch_goals = goal # TODO: figure out how to pass in the goal image
-
+        batch_imgs = obs / 255.0
+        # batch_goals = goal # TODO: figure out how to pass in the goal image
+        batch_goals = (torch.tensor(random.choices(self.goal_buffer, k=256)) / 255.0).to(device)
         with torch.no_grad():
             self.eval_mode()
 
             batch_imgs = self._preprocess_images(batch_imgs)
-            if self.goal_is_image:
-                batch_goals = self._preprocess_images(batch_goals)
+            if self.init_buffer is None:
+                self.init_buffer = batch_imgs
+            batch_goals = self._preprocess_images(batch_goals)
+                
+            cur_batch = torch.cat((self.init_buffer, batch_imgs, batch_goals), axis=1)
+            reward_dist = self.v2r_reward_model(cur_batch)
+            reward = torch.clip(reward_dist.sample(), 0, 1)
 
-
-            reward = 
-
+            # import pdb; pdb.set_trace()
             self.train_mode()
 
         return reward

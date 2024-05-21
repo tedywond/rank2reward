@@ -4,6 +4,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 import os
 import sys
 import pickle
+import random
 
 from pathlib import Path
 
@@ -289,7 +290,9 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
     '''
     do the same thing as ImageMetaworldEnv but override the reward
     '''
-    def __init__(self, env_str: str, camera_name: str, high_res_env: bool, lrf, airl_style_reward: bool = False, rlpd_res: bool = False, take_log_reward: bool = False, take_d_ratio: bool = False, lgn_multiplier: float = 1.0, eps: float=1e-5):
+    def __init__(self, env_str: str, camera_name: str, high_res_env: bool, lrf, airl_style_reward: bool = False, 
+                 train_ours: bool = False,
+                 rlpd_res: bool = False, take_log_reward: bool = False, take_d_ratio: bool = False, lgn_multiplier: float = 1.0, eps: float=1e-5):
         super().__init__(env_str, camera_name, high_res_env, rlpd_res)
         self.learned_reward_function = lrf
         self.resize_to_resnet = transforms.Resize(224)
@@ -298,6 +301,12 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
         self.take_d_ratio = take_d_ratio
         self.lgn_multiplier = lgn_multiplier
         self.eps = eps
+
+        #### ADDED
+        self.train_ours = train_ours
+        self.transform_ours = transforms.Resize(84)
+        self.init_obs = None
+        ####
 
     def _convert_obs_to_timestep(self, obs_dict, step_type, action=None, reward=0.0, info={}):
         og_reward = reward
@@ -309,16 +318,33 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
         obs = np.transpose(obs_dict["image_observation"], (2, 0, 1)) # CHW image, 0-255 int range, for storage!
         goal = obs_dict["state_observation"][-3:]
 
-        if step_type is not StepType.FIRST:
+        #### ADDED
+        if step_type is StepType.FIRST:
+            self.init_obs = torch.from_numpy(np.expand_dims(obs, axis=0)).float().to(device) / 255.0
+            if self.train_ours:
+                self.init_obs = self.transform_ours(self.init_obs)
+        else:
+        ####
             with torch.no_grad():
                 self.learned_reward_function.eval_mode()
-
                 batch_obs = torch.from_numpy(np.expand_dims(obs, axis=0)).float().to(device) / 255.0
                 if not self._env._render_higher_res_obs:
                     batch_obs = self.resize_to_resnet(batch_obs)
+                ### ADDED
+                if self.train_ours:
+                    batch_obs = self.transform_ours(batch_obs)
+                # import pdb; pdb.set_trace()
+                ####
                 batch_goal = torch.from_numpy(np.expand_dims(goal, axis=0)).float().to(device)
+                ### ADDED
+                if self.train_ours:
+                    batch_goal = torch.from_numpy(np.expand_dims(random.choice(self.learned_reward_function.goal_buffer), axis=0)).float().to(device) / 255.0
+                    # import pdb; pdb.set_trace()
+                    cur_batch = torch.cat((self.init_obs, batch_obs, batch_goal), axis=1)
+                    self.learned_reward_function.v2r_reward_model(cur_batch)
+                ###
 
-                if self.learned_reward_function.disable_ranking:
+                elif self.learned_reward_function.disable_ranking:
                     same_traj_val = torch.sigmoid(self.learned_reward_function.same_traj_classifier(batch_obs, batch_goal)).cpu().item()
                     reward = same_traj_val
                 elif self.learned_reward_function.disable_classifier:

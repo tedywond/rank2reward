@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch import distributions
-import resnet
+import video2reward.resnet as resnet
 
 
 model_dict = {'resnet18':resnet.resnet18, 

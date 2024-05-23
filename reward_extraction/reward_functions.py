@@ -311,7 +311,7 @@ class LearnedRewardFunction():
         '''
         if self.for_rlpd:
             rb_cf_states = next(self.replay_buffer)
-            import pdb; pdb.set_trace() # maybe need to change some shapes around
+            # import pdb; pdb.set_trace() # maybe need to change some shapes around
         else:
             rb_episode_trajs = [self.replay_buffer._sample_episode()[self.rb_buffer_obs_key][:-1] for _ in range(half_batch_size)]
             rb_cf_t_idxs = np.random.randint(self.horizon, size=(half_batch_size,))

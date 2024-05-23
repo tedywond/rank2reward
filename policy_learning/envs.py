@@ -344,7 +344,7 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                     cur_batch = torch.cat((self.init_obs, batch_obs, batch_goal), axis=1)
                     reward_dist = self.learned_reward_function.v2r_reward_model(cur_batch)
                     reward = np.clip(reward_dist.sample().item(), 0, 1)
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                 ###
 
                 elif self.learned_reward_function.disable_ranking:

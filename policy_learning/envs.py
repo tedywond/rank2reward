@@ -339,7 +339,7 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                 ### ADDED
                 if self.train_ours:
                     batch_goal = torch.from_numpy(np.expand_dims(random.choice(self.learned_reward_function.goal_buffer), axis=0)).float().to(device) / 255.0
-                    # import pdb; pdb.set_trace()
+                    import pdb; pdb.set_trace()
                     cur_batch = torch.cat((self.init_obs, batch_obs, batch_goal), axis=1)
                     self.learned_reward_function.v2r_reward_model(cur_batch)
                 ###

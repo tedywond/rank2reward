@@ -332,8 +332,6 @@ class LearnedRewardFunction():
         classify_states = torch.cat([expert_states_t, cf_states], dim=0)
         traj_labels = torch.cat([torch.ones((expert_states_t.size()[0], 1)), torch.zeros((cf_states.size()[0], 1))], dim=0).to(device)
 
-        import pdb; pdb.set_trace()
-        
         if self.train_classify_with_mixup:
             mixed_classify_states, traj_labels_a, traj_labels_b, lam = mixup_data(classify_states, traj_labels)
             mixed_traj_prediction_logits = self.same_traj_classifier(mixed_classify_states)

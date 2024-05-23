@@ -794,7 +794,7 @@ class MetaworldArgumentParser(Tap):
 
 def run_train():
     args = MetaworldArgumentParser().parse_args()
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     assert args.env_str in [
         "assembly", "drawer-open", "hammer", "door-close", "push",
         "reach", "bin-picking", "button-press-topdown", "door-open"

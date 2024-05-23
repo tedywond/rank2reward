@@ -341,7 +341,7 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                 
                 ### ADDED
                 if self.train_ours:
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     cur_batch = torch.cat((self.init_obs, batch_obs, batch_goal), axis=1)
                     self.learned_reward_function.v2r_reward_model(cur_batch)
                 ###

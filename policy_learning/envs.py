@@ -304,8 +304,12 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
 
         #### ADDED
         self.train_ours = train_ours
-        self.transform_ours = transforms.Resize(84)
+        self. transform_ours = transforms.Compose([
+            transforms.Resize(84),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
         self.init_obs = None
+        
         ####
 
     def _convert_obs_to_timestep(self, obs_dict, step_type, action=None, reward=0.0, info={}):
@@ -337,13 +341,10 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                     
                     batch_obs = self.transform_ours(batch_obs)
                     batch_goal = self.transform_ours(batch_goal)
-                ####
-                
-                ### ADDED
-                if self.train_ours:
-                    # import pdb; pdb.set_trace()
                     cur_batch = torch.cat((self.init_obs, batch_obs, batch_goal), axis=1)
-                    self.learned_reward_function.v2r_reward_model(cur_batch)
+                    reward_dist = self.learned_reward_function.v2r_reward_model(cur_batch)
+                    reward = np.clip(reward_dist.sample().item(), 0, 1)
+                    import pdb; pdb.set_trace()
                 ###
 
                 elif self.learned_reward_function.disable_ranking:

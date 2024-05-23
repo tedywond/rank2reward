@@ -852,8 +852,10 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
 
         self.v2r_reward_model = v2r_model.Model(model_type="resnet18")
         self.v2r_reward_model.to(device) # TODO: change to ID to train in parallel
+        print("Loading reward model weight...")
         checkpoint = torch.load('models/_norm_rand.pth') # TODO: download and load from Google Drive URL
         self.v2r_reward_model.load_state_dict(checkpoint['model_state_dict'])
+        print("Loaded weigth reward model.")
         self.v2r_reward_model.eval()
 
         # make sure there is expert data
@@ -917,6 +919,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         batch_imgs = obs / 255.0
         # batch_goals = goal # TODO: figure out how to pass in the goal image
         batch_goals = (torch.tensor(random.choices(self.goal_buffer, k=256)) / 255.0).to(device)
+
         with torch.no_grad():
             self.eval_mode()
 

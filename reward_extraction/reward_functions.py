@@ -916,6 +916,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         '''
         this code path is executed by the drqv2 agent updating the stale rewards
         '''
+        beta = 1.0 # TODO: include beta in args
         batch_imgs = obs / 255.0
         # batch_goals = goal # TODO: figure out how to pass in the goal image
         batch_goals = (torch.tensor(random.choices(self.goal_buffer, k=256)) / 255.0).to(device)
@@ -930,10 +931,12 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
                 
             cur_batch = torch.cat((self.init_buffer, batch_imgs, batch_goals), axis=1)
             reward_dist = self.v2r_reward_model(cur_batch)
-            reward = torch.clip(reward_dist.sample(), 0, 1)
+            reward_entropy = reward_dist.entropy().item()
+
+            reward = torch.clip(reward_dist.sample(), 0, 1) - beta * reward_entropy
 
             # import pdb; pdb.set_trace()
-            self.train_mode()
+            # self.train_mode()
 
         return reward
 ####

@@ -335,7 +335,7 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                 if not self._env._render_higher_res_obs:
                     batch_obs = self.resize_to_resnet(batch_obs)
                 ### ADDED
-                beta = 1.0 # TODO add this to args
+                beta = 0.1 # TODO add this to args
                 if self.train_ours:
                     batch_goal = torch.from_numpy(np.expand_dims(goal, axis=0)).float().to(device)
                     batch_goal = torch.from_numpy(np.expand_dims(random.choice(self.learned_reward_function.goal_buffer), axis=0)).float().to(device) / 255.0
@@ -346,7 +346,7 @@ class ImageOnlineCustomRewardMetaworldEnv(ImageMetaworldEnv):
                     reward_dist = self.learned_reward_function.v2r_reward_model(cur_batch)
                     reward_entropy = reward_dist.entropy().item()
 
-                    reward = np.clip(reward_dist.sample().item(), 0, 1) - beta * reward_entropy
+                    reward = reward_dist.sample().item() - beta * reward_entropy
 
 
                     # import pdb; pdb.set_trace()

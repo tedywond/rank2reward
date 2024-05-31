@@ -855,7 +855,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         print("Loading reward model weight...")
         checkpoint = torch.load('models/_norm_rand.pth') # TODO: download and load from Google Drive URL
         self.v2r_reward_model.load_state_dict(checkpoint['model_state_dict'])
-        print("Loaded weigth reward model.")
+        print("Loaded weight for the reward model.")
         self.v2r_reward_model.eval()
 
         # make sure there is expert data
@@ -916,7 +916,7 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
         '''
         this code path is executed by the drqv2 agent updating the stale rewards
         '''
-        beta = 1.0 # TODO: include beta in args
+        beta = 0.1 # TODO: include beta in args
         batch_imgs = obs / 255.0
         # batch_goals = goal # TODO: figure out how to pass in the goal image
         batch_goals = (torch.tensor(random.choices(self.goal_buffer, k=256)) / 255.0).to(device)
@@ -933,10 +933,10 @@ class OurLearnedImageRewardFunction(LearnedRewardFunction):
             reward_dist = self.v2r_reward_model(cur_batch)
             reward_entropy = reward_dist.entropy().item()
 
-            reward = torch.clip(reward_dist.sample(), 0, 1) - beta * reward_entropy
+            reward = reward_dist.sample() - beta * reward_entropy
 
             # import pdb; pdb.set_trace()
-            # self.train_mode()
+            self.train_mode()
 
         return reward
 ####
